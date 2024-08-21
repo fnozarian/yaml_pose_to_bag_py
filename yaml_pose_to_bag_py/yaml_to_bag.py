@@ -9,27 +9,24 @@ from rclpy.time import Time
 from rclpy.serialization import serialize_message
 from transforms3d.quaternions import mat2quat
 import shutil
-
+import re
 
 """
 This nodes reads YAML files containing 4x4 transformation matrices (relative poses)
 obtained from autoware.universe /localization/pose_twist_fusion_filter/pose topic and writes them to a bag file.
 Currently, the obtained bag from this node should be merged with the original bag containing lidar frames using the following command:
-```
-ros2 bag convert -i htw_rosbag/2024-03-19-14-18-43_KIA2_ros2.db3 -i \
-    htw_rosbag/2024-03-19-14-18-43_KIA2_pose/2024-03-19-14-18-43_KIA2_pose_0.db3 \
-    -o merge_ops.yaml
-```
 
+(ros2 bag play first_bag.db3 & ros2 bag play second_pose_only_bag.db3 & ros2 bag record -o merged_bag /topic1 /topic2 /topic3 & wait)
+or
+(ros2 bag play first_bag.db3 -d 1 --remap /ouster/points:=/ouster/points/car1 /pose:=/pose/car1 & 
+ ros2 bag play second_bag.db3 -d 1 --remap /ouster/points:=/ouster/points/car2 /pose:=/pose/car2 &
+ ros2 bag record -o V2X --all & wait)
+ 
 """
 class YAMLToBag(Node):
     def __init__(self):
         super().__init__('yaml_to_bag')
         self.get_logger().info('Pose to YAML Node has started!')
-        # Merge the resulted pose bag with the existing bag using the following command:
-        # ros2 bag convert -i htw_rosbag/2024-03-19-14-18-43_KIA2_ros2.db3 -i \
-        # htw_rosbag/2024-03-19-14-18-43_KIA2_pose/2024-03-19-14-18-43_KIA2_pose_0.db3 \
-        # -o merge_ops.yaml
         self.declare_parameter('bag_file', '/workspace/htw_rosbag/2024-03-19-14-18-43_KIA2_pose')
         self.declare_parameter('yaml_directory', '/workspace/2024-03-19-14-18-43/0/')
         self.declare_parameter('pose_topic', 'pose')
@@ -73,7 +70,7 @@ class YAMLToBag(Node):
     def append_to_bag(self):
         # Read YAML files and append data
         for file_name in sorted(os.listdir(self.yaml_directory)):
-            if file_name.endswith('.yaml'):
+            if re.match(r'^\d{6}\.yaml$', file_name):
                 file_path = os.path.join(self.yaml_directory, file_name)
                 with open(file_path, 'r') as file:
                     yaml_data = yaml.load(file, Loader=yaml.UnsafeLoader)
